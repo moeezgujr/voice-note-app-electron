@@ -1,6 +1,9 @@
-![image](https://github.com/user-attachments/assets/f21e30a1-66b9-40d8-ae32-fbf34e36a335)
-![image](https://github.com/user-attachments/assets/5160ba2c-5c37-4c58-b966-13cbb84cfabd)
-![Uploading image.png…]()
+![image](https://github.com/user-attachments/assets/ee3ddb70-317e-4174-8cad-5cf3f5617eea)
+![image](https://github.com/user-attachments/assets/1a690461-b633-40f6-bc69-49974b9d55bf)
+![image](https://github.com/user-attachments/assets/f0bf4c2c-946e-4143-aac2-1af49ca3433a)
+
+
+
 
 
 Electron Voice App README
