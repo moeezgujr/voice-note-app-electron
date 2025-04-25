@@ -1,6 +1,6 @@
 const TranscriptionView = ({ transcription, sendToApi, isLoading }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col col-span-1 md:col-span-2">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Transcription</h2>
 

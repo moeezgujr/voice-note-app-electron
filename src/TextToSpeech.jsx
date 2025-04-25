@@ -1,101 +1,107 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect } from "react";
 
-const TextToSpeech = ({ text }) => {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
-  const [error, setError] = useState(null)
-  const [volume, setVolume] = useState(1)
+const TextToSpeech = () => {
+  const [text, setText] = useState("");  // State for text input
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [error, setError] = useState(null);
+  const [volume, setVolume] = useState(1);
 
-  const utteranceRef = useRef(null)
+  const utteranceRef = useRef(null);
 
   // Initialize speech synthesis
   useEffect(() => {
     if (!window.speechSynthesis) {
-      setError("Speech synthesis is not supported in this browser.")
-      return
+      setError("Speech synthesis is not supported in this browser.");
+      return;
     }
 
     return () => {
       if (utteranceRef.current) {
-        window.speechSynthesis.cancel()
+        window.speechSynthesis.cancel();
       }
-    }
-  }, [])
+    };
+  }, []);
 
   // Update utterance when text changes
   useEffect(() => {
     if (window.speechSynthesis && text) {
       // Cancel any ongoing speech
-      window.speechSynthesis.cancel()
-      setIsPlaying(false)
-      setIsPaused(false)
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
+      setIsPaused(false);
     }
-  }, [text])
+  }, [text]);
 
   // Play text
   const playText = () => {
-    if (!window.speechSynthesis || !text) return
+    if (!window.speechSynthesis || !text) return;
 
     if (isPaused) {
       // Resume paused speech
-      window.speechSynthesis.resume()
-      setIsPaused(false)
-      setIsPlaying(true)
-      return
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+      setIsPlaying(true);
+      return;
     }
 
     // Cancel any ongoing speech
-    window.speechSynthesis.cancel()
+    window.speechSynthesis.cancel();
 
     // Create new utterance
-    utteranceRef.current = new SpeechSynthesisUtterance(text)
-    utteranceRef.current.volume = volume
+    utteranceRef.current = new SpeechSynthesisUtterance(text);
+    utteranceRef.current.volume = volume;
 
     // Set event handlers
     utteranceRef.current.onend = () => {
-      setIsPlaying(false)
-      setIsPaused(false)
-    }
+      setIsPlaying(false);
+      setIsPaused(false);
+    };
 
     utteranceRef.current.onerror = (event) => {
-      console.error("Speech synthesis error:", event)
-      setError("Error during speech synthesis.")
-      setIsPlaying(false)
-      setIsPaused(false)
-    }
+      console.error("Speech synthesis error:", event);
+      setError("Error during speech synthesis.");
+      setIsPlaying(false);
+      setIsPaused(false);
+    };
 
     // Start speaking
-    window.speechSynthesis.speak(utteranceRef.current)
-    setIsPlaying(true)
-  }
+    window.speechSynthesis.speak(utteranceRef.current);
+    setIsPlaying(true);
+  };
 
   // Pause speech
   const pauseSpeech = () => {
     if (window.speechSynthesis && isPlaying) {
-      window.speechSynthesis.pause()
-      setIsPaused(true)
-      setIsPlaying(false)
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+      setIsPlaying(false);
     }
-  }
+  };
 
   // Stop speech
   const stopSpeech = () => {
     if (window.speechSynthesis) {
-      window.speechSynthesis.cancel()
-      setIsPlaying(false)
-      setIsPaused(false)
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
+      setIsPaused(false);
     }
-  }
+  };
 
   // Handle volume change
   const handleVolumeChange = (e) => {
-    const newVolume = Number.parseFloat(e.target.value)
-    setVolume(newVolume)
+    const newVolume = Number.parseFloat(e.target.value);
+    setVolume(newVolume);
 
     if (utteranceRef.current) {
-      utteranceRef.current.volume = newVolume
+      utteranceRef.current.volume = newVolume;
     }
-  }
+  };
+
+  // Handle text input change
+  const handleTextChange = (e) => {
+    setText(e.target.value);
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col">
@@ -104,10 +110,19 @@ const TextToSpeech = ({ text }) => {
       <div className="flex-1 flex flex-col justify-center items-center min-h-[120px]">
         {error ? (
           <div className="text-red-500 text-sm">{error}</div>
-        ) : !text ? (
-          <p className="text-gray-400 dark:text-gray-500 italic">Record or type some text to use text-to-speech...</p>
         ) : (
           <div className="w-full">
+            <div className="mb-4">
+              {/* Text input field to allow user to type text */}
+              <textarea
+                value={text}
+                onChange={handleTextChange}
+                placeholder="Type text here..."
+                rows="4"
+                className="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:text-white dark:border-gray-600"
+              />
+            </div>
+
             <div className="flex justify-center space-x-4 mb-6">
               {isPlaying ? (
                 <button onClick={pauseSpeech} className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-3">
@@ -194,7 +209,7 @@ const TextToSpeech = ({ text }) => {
         )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default TextToSpeech
+export default TextToSpeech;
