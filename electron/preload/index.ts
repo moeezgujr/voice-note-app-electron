@@ -2,26 +2,32 @@ import { ipcRenderer, contextBridge } from 'electron'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+  // Camera and File System APIs
+  saveImage: (base64Data: string) => ipcRenderer.invoke('save-image', base64Data),
+  openSaveLocation: () => ipcRenderer.invoke('open-save-location'),
+  getCameraDevices: () => ipcRenderer.invoke('get-camera-devices'),
+  getSavedSnapshots: () => ipcRenderer.invoke('get-saved-snapshots'),
+  deleteSnapshot: (id:any) => ipcRenderer.invoke('delete-snapshot', id),
+  saveRecording: (recordingData:any) => ipcRenderer.invoke('save-recording', recordingData),
+  getSavedRecordings: () => ipcRenderer.invoke('get-saved-recordings'),
+  deleteRecording: (id:any) => ipcRenderer.invoke('delete-recording', id),
+  // Existing IPC methods with type safety
+  on: (channel: string, listener: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (event, ...args) => listener(event, ...args));
   },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
+  off: (channel: string, listener: (...args: any[]) => void) => {
+    ipcRenderer.off(channel, listener);
   },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
+  send: (channel: string, ...args: any[]) => {
+    ipcRenderer.send(channel, ...args);
   },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
+  invoke: (channel: string, ...args: any[]) => {
+    return ipcRenderer.invoke(channel, ...args);
   },
 
-  // You can expose other APTs you need here.
+  // You can expose other APIs you need here
   // ...
-})
+});
 
 // --------- Preload scripts loading ---------
 function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {

@@ -1,9 +1,35 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
-const NotesGallery = ({ snapshots, recordings }) => {
+const NotesGallery = ({ recordings }) => {
   const [selectedTab, setSelectedTab] = useState("snapshots")
   const [playingId, setPlayingId] = useState(null)
   const [audioElement, setAudioElement] = useState(null)
+  const [snapshots, setSnapshots] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Load snapshots from storage
+  useEffect(() => {
+    const loadSnapshots = async () => {
+      if (!window.ipcRenderer) return // Skip in non-Electron environment
+      
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const savedSnapshots = await window.ipcRenderer.getSavedSnapshots()
+        debugger
+        setSnapshots(savedSnapshots)
+      } catch (err) {
+        console.error("Failed to load snapshots:", err)
+        setError("Failed to load snapshots from storage")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadSnapshots()
+  }, [])
 
   // Format date
   const formatDate = (dateString) => {
@@ -17,6 +43,7 @@ const NotesGallery = ({ snapshots, recordings }) => {
     const secs = seconds % 60
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
+
   // Play audio
   const playAudio = (recording) => {
     if (audioElement) {
@@ -40,9 +67,28 @@ const NotesGallery = ({ snapshots, recordings }) => {
     }
   }
 
+  // Delete snapshot
+  const deleteSnapshot = async (id) => {
+    if (!window.ipcRenderer) return
+    
+    try {
+      await window.ipcRenderer.deleteSnapshot(id)
+      setSnapshots(snapshots.filter(s => s.id !== id))
+    } catch (err) {
+      console.error("Failed to delete snapshot:", err)
+      setError("Failed to delete snapshot")
+    }
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
       <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Notes Gallery</h2>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
 
       <div className="flex border-b mb-4">
         <button
@@ -68,7 +114,7 @@ const NotesGallery = ({ snapshots, recordings }) => {
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            Snapshots ({snapshots.length})
+            Snapshots ({loading ? "..." : snapshots.length})
           </div>
         </button>
 
@@ -103,23 +149,47 @@ const NotesGallery = ({ snapshots, recordings }) => {
 
       {selectedTab === "snapshots" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {snapshots.length === 0 ? (
+          {loading ? (
+            <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+              Loading snapshots...
+            </div>
+          ) : snapshots.length === 0 ? (
             <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
               No snapshots yet. Take some photos in the Record tab.
             </div>
           ) : (
             snapshots.map((snapshot) => (
-              <div key={snapshot.id} className="bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+              <div key={snapshot.id} className="bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden relative">
                 <div className="aspect-w-16 aspect-h-9 bg-black">
                   <img
-                    src={snapshot.dataUrl || "/placeholder.svg"}
+                    src={snapshot.dataUrl}
                     alt={`Snapshot ${snapshot.id}`}
                     className="object-contain w-full h-full"
+                  
                   />
                 </div>
                 <div className="p-2">
                   <div className="text-sm text-gray-600 dark:text-gray-300">{formatDate(snapshot.timestamp)}</div>
                 </div>
+                <button
+                  onClick={() => deleteSnapshot(snapshot.id)}
+                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                  title="Delete snapshot"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
               </div>
             ))
           )}

@@ -273,7 +273,7 @@ const CameraComponent = ({addSnapshot}) => {
       dataUrl: imageData,
       timestamp: new Date().toLocaleString()
     };
-    
+    saveSnapshot(imageData)
     addSnapshot(newPhoto)
 
     // Save to file system
@@ -287,7 +287,26 @@ const CameraComponent = ({addSnapshot}) => {
     //   console.error('Error saving image:', err);
     // }
   };
-
+  const saveSnapshot = async (imageData) => {
+    try {
+      if (window.ipcRenderer) {
+        const result = await window.ipcRenderer.saveImage(imageData);
+        if (result.success) {
+          console.log('Image saved to:', result.path);
+          // Add to your state or show success message
+        } else {
+          console.error('Failed to save image:', result.error);
+          // Show error to user
+        }
+      } else {
+        // Fallback for non-Electron environment
+        console.log('Would save image in browser:', imageData);
+      }
+    } catch (err) {
+      console.error('Error saving image:', err);
+    }
+  };
+  
   // Clean up on unmount
   useEffect(() => {
     return () => {

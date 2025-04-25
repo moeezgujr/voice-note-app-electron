@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import { update } from "./update";
+import fs from "fs"; // Add this import
+import { dialog } from 'electron';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -128,6 +130,7 @@ ipcMain.handle("open-win", (_, arg) => {
       nodeIntegration: true,
       contextIsolation: true,
       enableBlinkFeatures: "MediaDevices",
+      webSecurity:false
     },
   });
 
@@ -135,5 +138,197 @@ ipcMain.handle("open-win", (_, arg) => {
     childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`);
   } else {
     childWindow.loadFile(indexHtml, { hash: arg });
+  }
+});
+ipcMain.handle('save-image', async (event, base64Data) => {
+  try {
+    // Use the 'public' directory instead of 'documents' directory
+    const publicDir = path.join(__dirname, 'public', 'app-snapshots');
+
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(publicDir)) {
+      fs.mkdirSync(publicDir, { recursive: true });
+    }
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filePath = path.join(publicDir, `snapshot-${timestamp}.png`);
+
+    // Remove the base64 prefix
+    const base64Image = base64Data.split(';base64,').pop();
+    
+    // Write file
+    fs.writeFileSync(filePath, base64Image, { encoding: 'base64' });
+
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('Error saving image:', error);
+    if (error instanceof Error) {
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: String(error) };
+  }
+});
+ipcMain.handle('open-save-location', async () => {
+  if (!win) return;
+  
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory']
+  });
+  
+  return result.filePaths[0] || app.getPath('documents');
+});
+ipcMain.handle('get-saved-snapshots', async () => {
+  try {
+    // Update the directory to the 'public/app-snapshots' folder
+    const snapshotsDir = path.join(__dirname, 'public', 'app-snapshots');
+
+    // Check if the directory exists
+    if (!fs.existsSync(snapshotsDir)) {
+      return [];
+    }
+
+    // Read the files in the directory
+    const files = fs.readdirSync(snapshotsDir);
+
+    // Process PNG files and convert to base64
+    const snapshots = await Promise.all(
+      files
+        .filter(file => file.endsWith('.png'))
+        .map(async (file) => {
+          const filePath = path.join(snapshotsDir, file);
+          const stats = fs.statSync(filePath);
+          const timestamp = stats.birthtime.toISOString();
+          const id = path.basename(file, '.png').replace('snapshot-', '');
+          
+          // Read file and convert to base64
+          const data = await fs.promises.readFile(filePath);
+          const base64 = data.toString('base64');
+          const dataUrl = `data:image/png;base64,${base64}`;
+          
+          return {
+            id,
+            filePath,
+            dataUrl, // Add the base64 data URL
+            timestamp,
+            name: `Snapshot ${id}`
+          };
+        })
+    );
+
+    return snapshots;
+    
+  } catch (error) {
+    console.error('Error getting snapshots:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-snapshot', async (event, id) => {
+  try {
+    const snapshotsDir = path.join(app.getPath('documents'), 'app-snapshots')
+    const filePath = path.join(snapshotsDir, `snapshot-${id}.png`)
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath)
+      return { success: true }
+    }
+    return { success: false, error: 'File not found' }
+  } catch (error) {
+    console.error('Error deleting snapshot:', error)
+    throw error
+  }
+})
+ipcMain.handle('save-recording', async (event, { audioData, name, duration }) => {
+  try {
+    const recordingsDir = path.join(app.getPath('documents'), 'app-recordings');
+    
+    if (!fs.existsSync(recordingsDir)) {
+      fs.mkdirSync(recordingsDir, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `recording-${timestamp}.webm`;
+    const filePath = path.join(recordingsDir, fileName);
+    
+    // Convert base64 to buffer and write to file
+    const buffer = Buffer.from(audioData.split(',')[1], 'base64');
+    fs.writeFileSync(filePath, buffer);
+
+    return {
+      success: true,
+      recording: {
+        id: timestamp,
+        filePath,
+        url: `file://${filePath}`,
+        name: name || `Recording ${timestamp}`,
+        duration,
+        timestamp
+      }
+    };
+  }catch (error) {
+    console.error('Error saving image:', error);
+    if (error instanceof Error) {
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('get-saved-recordings', async () => {
+  try {
+    const recordingsDir = path.join(app.getPath('documents'), 'app-recordings');
+    
+    if (!fs.existsSync(recordingsDir)) {
+      return [];
+    }
+
+    const files = fs.readdirSync(recordingsDir);
+    const recordings = [];
+
+    for (const file of files.filter(f => f.endsWith('.webm'))) {
+      try {
+        const filePath = path.join(recordingsDir, file);
+        const stats = fs.statSync(filePath);
+        const timestamp = stats.birthtime.toISOString();
+        const id = path.basename(file, '.webm').replace('recording-', '');
+        
+        // Get duration (you might want to store this in metadata when saving)
+        // For simplicity, we'll use file size as a proxy here
+        const duration = Math.round(stats.size / 10000); // Rough estimate
+        
+        recordings.push({
+          id,
+          filePath,
+          url: `file://${filePath}`,
+          name: `Recording ${id}`,
+          duration,
+          timestamp
+        });
+      } catch (fileError) {
+        console.error(`Error processing recording ${file}:`, fileError);
+      }
+    }
+
+    return recordings
+  } catch (error) {
+    console.error('Error getting recordings:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('delete-recording', async (event, id) => {
+  try {
+    const recordingsDir = path.join(app.getPath('documents'), 'app-recordings');
+    const filePath = path.join(recordingsDir, `recording-${id}.webm`);
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      return { success: true };
+    }
+    return { success: false, error: 'File not found' };
+  } catch (error) {
+    console.error('Error deleting recording:', error);
+    throw error;
   }
 });
