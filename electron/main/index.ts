@@ -337,3 +337,4 @@ ipcMain.handle('delete-recording', async (event, id) => {
     throw error;
   }
 });
+
