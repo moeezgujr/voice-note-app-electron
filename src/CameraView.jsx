@@ -317,10 +317,11 @@ const CameraComponent = ({addSnapshot}) => {
   }, [stream]);
 
   return (
-<div className="p-6 w-full max-w-xs bg-gray-900 rounded-xl shadow-lg">
-  <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-    <span role="img" aria-label="camera">📸</span> Camera Snapshot
-  </h2>
+<div className="p-6 w-full max-w-xs  rounded-xl shadow-lg" style={{minWidth:'-webkit-fill-available'
+}}>
+<h1 className="text-lg font-bold text-gray-800 dark:text-white hidden lg:block">
+<span role="img" aria-label="camera">📸</span> Camera Snapshot
+  </h1>
 
   <div className="w-full aspect-video bg-black rounded-lg overflow-hidden border border-gray-700 mb-4">
     <video
