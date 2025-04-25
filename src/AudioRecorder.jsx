@@ -150,6 +150,30 @@ const AudioRecorder = ({ addRecording, updateTranscription }) => {
       }
     }
   }, [audioBlob])
+  const saveRecordingtoStore = async (audioBlob, name, duration) => {
+    if (!window.ipcRenderer) return;
+    
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      
+      reader.onloadend = async () => {
+        const base64data = reader.result;
+        const result = await window.ipcRenderer.saveRecording({
+          audioData: base64data,
+          name,
+          duration
+        });
+        
+        if (result.success) {
+          // setRecordings(prev => [result.recording, ...prev]);
+        }
+      };
+    } catch (err) {
+      console.error("Failed to save recording:", err);
+      setError("Failed to save recording");
+    }
+  };
 
   // Save recording
   const saveRecording = () => {
@@ -168,6 +192,7 @@ const AudioRecorder = ({ addRecording, updateTranscription }) => {
     }
 
     addRecording(newRecording)
+    saveRecordingtoStore(audioBlob,newRecording.name, newRecording.duration)
     setRecordingTime(0)
   }
 

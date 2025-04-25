@@ -1,34 +1,39 @@
 import { useState, useEffect } from "react"
 
-const NotesGallery = ({ recordings }) => {
+const NotesGallery = () => {
   const [selectedTab, setSelectedTab] = useState("snapshots")
   const [playingId, setPlayingId] = useState(null)
   const [audioElement, setAudioElement] = useState(null)
   const [snapshots, setSnapshots] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [recordings, setRecordings] = useState([])
+  const [loading, setLoading] = useState({ snapshots: false, recordings: false })
   const [error, setError] = useState(null)
 
-  // Load snapshots from storage
+  // Load both snapshots and recordings from storage
   useEffect(() => {
-    const loadSnapshots = async () => {
+    const loadMedia = async () => {
       if (!window.ipcRenderer) return // Skip in non-Electron environment
       
-      setLoading(true)
-      setError(null)
-      
       try {
-        const savedSnapshots = await window.ipcRenderer.getSavedSnapshots()
-        debugger
+        setLoading(prev => ({ ...prev, snapshots: true, recordings: true }))
+        setError(null)
+        
+        const [savedSnapshots, savedRecordings] = await Promise.all([
+          window.ipcRenderer.getSavedSnapshots(),
+          window.ipcRenderer.getSavedRecordings()
+        ])
+        
         setSnapshots(savedSnapshots)
+        setRecordings(savedRecordings)
       } catch (err) {
-        console.error("Failed to load snapshots:", err)
-        setError("Failed to load snapshots from storage")
+        console.error("Failed to load media:", err)
+        setError("Failed to load media from storage")
       } finally {
-        setLoading(false)
+        setLoading(prev => ({ ...prev, snapshots: false, recordings: false }))
       }
     }
 
-    loadSnapshots()
+    loadMedia()
   }, [])
 
   // Format date
@@ -40,17 +45,17 @@ const NotesGallery = ({ recordings }) => {
   // Format duration
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
+    const secs = Math.floor(seconds % 60)
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  // Play audio
+  // Play audio from base64 string
   const playAudio = (recording) => {
     if (audioElement) {
       audioElement.pause()
     }
 
-    const audio = new Audio(recording.url)
+    const audio = new Audio(recording.base64Audio)
     audio.onended = () => setPlayingId(null)
     audio.play()
 
@@ -73,10 +78,23 @@ const NotesGallery = ({ recordings }) => {
     
     try {
       await window.ipcRenderer.deleteSnapshot(id)
-      setSnapshots(snapshots.filter(s => s.id !== id))
+      setSnapshots(prev => prev.filter(s => s.id !== id))
     } catch (err) {
       console.error("Failed to delete snapshot:", err)
       setError("Failed to delete snapshot")
+    }
+  }
+
+  // Delete recording
+  const deleteRecording = async (id) => {
+    if (!window.ipcRenderer) return
+    
+    try {
+      await window.ipcRenderer.deleteRecording(id)
+      setRecordings(prev => prev.filter(r => r.id !== id))
+    } catch (err) {
+      console.error("Failed to delete recording:", err)
+      setError("Failed to delete recording")
     }
   }
 
@@ -99,23 +117,7 @@ const NotesGallery = ({ recordings }) => {
           }`}
           onClick={() => setSelectedTab("snapshots")}
         >
-          <div className="flex items-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-2"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <circle cx="8.5" cy="8.5" r="1.5"></circle>
-              <polyline points="21 15 16 10 5 21"></polyline>
-            </svg>
-            Snapshots ({loading ? "..." : snapshots.length})
-          </div>
+          Snapshots ({loading.snapshots ? "..." : snapshots.length})
         </button>
 
         <button
@@ -126,30 +128,13 @@ const NotesGallery = ({ recordings }) => {
           }`}
           onClick={() => setSelectedTab("recordings")}
         >
-          <div className="flex items-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-2"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="23"></line>
-              <line x1="8" y1="23" x2="16" y2="23"></line>
-            </svg>
-            Recordings ({recordings.length})
-          </div>
+          Recordings ({loading.recordings ? "..." : recordings.length})
         </button>
       </div>
 
       {selectedTab === "snapshots" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {loading ? (
+          {loading.snapshots ? (
             <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
               Loading snapshots...
             </div>
@@ -165,7 +150,6 @@ const NotesGallery = ({ recordings }) => {
                     src={snapshot.dataUrl}
                     alt={`Snapshot ${snapshot.id}`}
                     className="object-contain w-full h-full"
-                  
                   />
                 </div>
                 <div className="p-2">
@@ -198,59 +182,85 @@ const NotesGallery = ({ recordings }) => {
 
       {selectedTab === "recordings" && (
         <div className="space-y-2">
-          {recordings.length === 0 ? (
+          {loading.recordings ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              Loading recordings...
+            </div>
+          ) : recordings.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               No recordings yet. Record some audio in the Record tab.
             </div>
           ) : (
             recordings.map((recording) => (
-              <div key={recording.id} className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center">
-                <div className="mr-3">
-                  {playingId === recording.id ? (
-                    <button onClick={pauseAudio} className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+              <div key={recording.id} className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex items-center flex-1">
+                  <div className="mr-3">
+                    {playingId === recording.id ? (
+                      <button onClick={pauseAudio} className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="6" y="4" width="4" height="16"></rect>
+                          <rect x="14" y="4" width="4" height="16"></rect>
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => playAudio(recording)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2"
                       >
-                        <rect x="6" y="4" width="4" height="16"></rect>
-                        <rect x="14" y="4" width="4" height="16"></rect>
-                      </svg>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => playAudio(recording)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                      </svg>
-                    </button>
-                  )}
-                </div>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
 
-                <div className="flex-1">
-                  <div className="font-medium text-gray-800 dark:text-white">{recording.name}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
-                    <span>{formatDate(recording.timestamp)}</span>
-                    <span className="mx-2">•</span>
-                    <span>{formatDuration(recording.duration)}</span>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-800 dark:text-white">{recording.name}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                      <span>{formatDate(recording.timestamp)}</span>
+                      <span className="mx-2">•</span>
+                      <span>{formatDuration(recording.duration)}</span>
+                    </div>
                   </div>
                 </div>
+                
+                <button
+                  onClick={() => deleteRecording(recording.id)}
+                  className="ml-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+                  title="Delete recording"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
               </div>
             ))
           )}

@@ -292,10 +292,13 @@ ipcMain.handle('get-saved-recordings', async () => {
         const stats = fs.statSync(filePath);
         const timestamp = stats.birthtime.toISOString();
         const id = path.basename(file, '.webm').replace('recording-', '');
-        
+
         // Get duration (you might want to store this in metadata when saving)
-        // For simplicity, we'll use file size as a proxy here
         const duration = Math.round(stats.size / 10000); // Rough estimate
+        
+        // Read the file as base64
+        const fileBuffer = fs.readFileSync(filePath);
+        const base64Audio = fileBuffer.toString('base64');
         
         recordings.push({
           id,
@@ -303,19 +306,21 @@ ipcMain.handle('get-saved-recordings', async () => {
           url: `file://${filePath}`,
           name: `Recording ${id}`,
           duration,
-          timestamp
+          timestamp,
+          base64Audio: `data:audio/webm;base64,${base64Audio}` // Include base64 string
         });
       } catch (fileError) {
         console.error(`Error processing recording ${file}:`, fileError);
       }
     }
 
-    return recordings
+    return recordings;
   } catch (error) {
     console.error('Error getting recordings:', error);
     throw error;
   }
 });
+
 
 ipcMain.handle('delete-recording', async (event, id) => {
   try {
